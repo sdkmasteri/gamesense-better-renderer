@@ -20,9 +20,6 @@ local better_renderer_mt = {__index = better_renderer}
 utils.sumcoord = function(coord1, coord2)
     return Coord(coord1.x + coord2.x, coord1.y + coord2.y)
 end
-utils.calcrange = function(coord, size)
-    return {x1 = coord.x, x2 = coord.x + size.x, y1 = coord.y, y2 = coord.y + size.y}
-end
 utils.in_range_triangle = function(curs, coords)
     local a = (coords[1].x - curs.x) * (coords[2].y - coords[1].y) - (coords[2].x - coords[1].x) * (coords[1].y - curs.y)
     local b = (coords[2].x - curs.x) * (coords[3].y - coords[2].y) - (coords[3].x - coords[2].x) * (coords[2].y - curs.y)
@@ -30,8 +27,8 @@ utils.in_range_triangle = function(curs, coords)
     if (a >= 0 and b >= 0 and c >= 0) then return true end
     return false
 end
-utils.in_range_rect = function(curs, rect)
-    return curs.x > rect.x1 and curs.x < rect.x2 and curs.y > rect.y1 and curs.y < rect.y2 
+utils.in_range_rect = function(curs, coord, size)
+    return curs.x > coord.x and curs.x < coord.x + size.x and curs.y > coord.y and curs.y < coord.y + size.y 
 end
 utils.in_range_circle = function(curs, coord, radius)
     return (curs.x - coord.x)^2 + (curs.y - coord.y)^2 <= radius^2
@@ -107,7 +104,7 @@ function better_renderer:drag(hover)
     dragable[self.id].current_vec = dragable[self.id].current_vec or self.coord
     dragable[self.id].drags = true
     dragable[self.id].hover = hover or false
-    dragable[self.id].inrange = self.type == "rect" and utils.in_range_rect(global.cursor_pos, utils.calcrange(dragable[self.id].current_vec, self.size)) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, dragable[self.id].current_vec) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, dragable[self.id].current_vec, self.radius)
+    dragable[self.id].inrange = self.type == "rect" and utils.in_range_rect(global.cursor_pos, self.coord, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, dragable[self.id].current_vec) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, dragable[self.id].current_vec, self.radius)
     dragable[self.id].clicked = global.clicked and dragable[self.id].inrange or false
     dragable[self.id].firstclick = global.firstclick and dragable[self.id].inrange or false
     dragable[self.id].absolute = dragable[self.id].absolute or false
@@ -115,12 +112,11 @@ end
 function better_renderer:rectangle(id, coord, size, color)
     if dragable[id] ~= nil then
         if dragable[id].drags == true and ui.is_menu_open() then
-            dragable[id].range = utils.calcrange(dragable[id].current_vec, size)
             if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
                 client.exec("-attack")
                 if dragable[id].inrange or dragable[id].absolute then
                     dragable[id].absolute = global.clicked
-                    dragable[id].current_vec = Coord(dragable[id].range.x1 + global.delta.x, dragable[id].range.y1 + global.delta.y)
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
                 end
             end
         end
@@ -133,12 +129,11 @@ end
 function better_renderer:rectangle_outline(id, coord, size, color, thickness)
     if dragable[id] ~= nil then
         if dragable[id].drags == true and ui.is_menu_open() then
-            dragable[id].range = utils.calcrange(dragable[id].current_vec, size)
             if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
                 client.exec("-attack")
                 if dragable[id].inrange or dragable[id].absolute then
                     dragable[id].absolute = global.clicked
-                    dragable[id].current_vec = Coord(dragable[id].range.x1 + global.delta.x, dragable[id].range.y1 + global.delta.y)
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
                 end
             end
         end
@@ -151,12 +146,11 @@ end
 function better_renderer:blur(id, coord, size, alpha, amount)
     if dragable[id] ~= nil then
         if dragable[id].drags == true and ui.is_menu_open() then
-            dragable[id].range = utils.calcrange(dragable[id].current_vec, size)
             if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
                 client.exec("-attack")
                 if dragable[id].inrange or dragable[id].absolute then
                     dragable[id].absolute = global.clicked
-                    dragable[id].current_vec = Coord(dragable[id].range.x1 + global.delta.x, dragable[id].range.y1 + global.delta.y)
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
                 end
             end
         end
@@ -234,12 +228,3 @@ function better_renderer:circle_outline(id, coord, color, radius, start_degrees,
     end
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
---client.set_event_callback("paint_ui", function()
---    local x, y = client.screen_size()
---    local c = better_renderer:new()
---    local a = c:rectangle_outline("#1", Coord(500, 200), Coord(100, 100), Color(255, 255, 255))
---    local b = c:rectangle_outline("#2", Coord(200, 200), Coord(100, 100), Color(255, 255, 255))
---    local h = c:circle("#3", Coord(500, 500), Color(255, 255, 255), 20, 0, 1)
---    a:drag()
---    b:drag()
---end)
