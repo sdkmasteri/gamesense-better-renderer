@@ -8,6 +8,12 @@ render.outlined_rect = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 18, 
 render.filled_rect_fade = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 123, "void(__thiscall*)(void*, int, int, int, int, unsigned int, unsigned int, bool)")
 render.line = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 19, "void(__thiscall*)(void*, int, int, int, int)")
 render.poly_line = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 20, "void(__thiscall*)(void*, int*, int*, int)")
+render.create_font = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 71, "unsigned int(__thiscall*)(void*)")
+render.font_col = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 25, "void(__thiscall*)(void*, int, int, int, int)")
+render.text_pos = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 26, "void(__thiscall*)(void*, int, int)")
+render.set_glyph = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 72, "bool(__thiscall*)(void*, unsigned long, const char*, int, int, int, int, unsigned long, int, int)")
+render.set_font = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 23, "void(__thiscall*)(void*, unsigned int)")
+render.draw_text = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 28, "void(__thiscall*)(void*, const wchar_t*, int, int)")
 --region @utils and misc
 local function Color(r, g, b, a)
     return {
@@ -24,7 +30,7 @@ local function Coord(x, y)
     }
 end
 local screen = {client.screen_size()}
-local utils, better_renderer, global, dragable = {}, {}, {}, {}
+local utils, better_renderer, global, dragable, fonts = {}, {}, {}, {}, {}
 local better_renderer_mt = {__index = better_renderer}
 utils.sumcoord = function(coord1, coord2)
     return Coord(coord1.x + coord2.x, coord1.y + coord2.y)
@@ -86,18 +92,11 @@ utils.triangle_outline = function(coord1, coord2, coord3, color, thickness)
     local y = ffi.new("int[3]", coord1.y, coord2.y, coord3.y)
     render.set_col(color.r, color.g, color.b, color.a)
     render.poly_line(x, y, 3)
-    --render.line(coord1.x, coord1.y, coord2.x, coord2.y)
-    --render.line(coord2.x, coord2.y, coord3.x, coord3.y)
-    --render.line(coord3.x, coord3.y, coord1.x, coord1.y)
     if thickness > 1 then
         for i=1, thickness, 1 do
             local xi = ffi.new("int[3]", coord1.x + i*2, coord2.x, coord3.x - i*2)
             local yi = ffi.new("int[3]", coord1.y - i, coord2.y + i, coord3.y - i)
             render.poly_line(xi, yi, 3)
-
-            --render.line(coord1.x + i*2, coord1.y - i, coord2.x, coord2.y + i)
-            --render.line(coord2.x, coord2.y + i, coord3.x - i*2, coord3.y - i)
-            --render.line(coord3.x - i*2, coord3.y - i, coord1.x + i*2, coord1.y - i)
         end
     end
 end
@@ -261,4 +260,28 @@ function better_renderer:circle_outline(id, coord, color, radius, start_degrees,
         renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
     end
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
+end
+function better_renderer:add_font(id, fontname, tall, weight, blur, flags)
+    if fonts[id] ~= nil then return fonts[id] end
+    if type(flags) ~= "number" and type(flags) ~= "table" then return client.error_log("flags must be number or table type") end
+    local fflags = 0
+    if type(flags) == "table" then 
+        for _, v in pairs(flags) do
+            fflags = fflags + v
+        end
+    else
+        fflags = flags
+    end
+    local font_handler = render.create_font()
+    fonts[id] = setmetatable({id = id, font_handler = font_handler, fontname = fontname, tall = tall, weight = weight, blur = blur, flags = fflags}, better_renderer_mt)
+    return fonts[id]
+end
+function better_renderer:draw_text(coord, color, text)
+    local text_len = string.len(text)
+    local w_text = ffi.new(ffi.typeof("wchar_t[$]", text_len), string.byte(text, 1, text_len))
+    render.font_col(color.r, color.g, color.b, color.a)
+    render.text_pos(coord.x, coord.y)
+    render.set_glyph(self.font_handler, self.fontname, self.tall, self.weight, 0, 0, self.flags, 0, 0)
+    render.set_font(self.font_handler)
+    render.draw_text(w_text, text_len, 0)
 end
