@@ -6,6 +6,7 @@ render.set_col = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 15, "void(
 render.filled_rect = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 16, "void(__thiscall*)(void*, int, int, int, int)")
 render.outlined_rect = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 18, "void(__thiscall*)(void*, int, int, int, int)")
 render.filled_rect_fade = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 123, "void(__thiscall*)(void*, int, int, int, int, unsigned int, unsigned int, bool)")
+render.filled_fast_fade = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 122, "bool(__thiscall*)(void*, int, int, int, int, int, int, unsigned int, unsigned int, bool)")
 render.line = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 19, "void(__thiscall*)(void*, int, int, int, int)")
 render.poly_line = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 20, "void(__thiscall*)(void*, int*, int*, int)")
 render.create_font = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 71, "unsigned int(__thiscall*)(void*)")
@@ -14,6 +15,7 @@ render.text_pos = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 26, "void
 render.set_glyph = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 72, "bool(__thiscall*)(void*, unsigned long, const char*, int, int, int, int, unsigned long, int, int)")
 render.set_font = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 23, "void(__thiscall*)(void*, unsigned int)")
 render.draw_text = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 28, "void(__thiscall*)(void*, const wchar_t*, int, int)")
+render.text_size = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 79, "bool(__thiscall*)(void*, unsigned long, const wchar_t*, int&, int&)")
 --region @utils and misc
 local function Color(r, g, b, a)
     return {
@@ -32,6 +34,13 @@ end
 local screen = {client.screen_size()}
 local utils, better_renderer, global, dragable, fonts = {}, {}, {}, {}, {}
 local better_renderer_mt = {__index = better_renderer}
+utils.get_text_size = function(font, text)
+    local height_t, width_t = ffi.new("int[1]"), ffi.new("int[1]")
+    local text_len = string.len(text)
+    local w_text = ffi.new(ffi.typeof("wchar_t[$]", text_len), string.byte(text, 1, text_len))
+    render.text_size(font, w_text, width_t, height_t)
+    return Coord(width_t[0], height_t[0])
+end
 utils.sumcoord = function(coord1, coord2)
     return Coord(coord1.x + coord2.x, coord1.y + coord2.y)
 end
@@ -85,6 +94,11 @@ utils.rect_filled_fade = function(coord, size, color, alpha0, alpha1, horizontal
     local horizontal = horizontal or false
     render.set_col(color.r, color.g, color.b, color.a)
     render.filled_rect_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, alpha0, alpha1, horizontal)
+end
+utils.rect_fast_fade = function(coord, size, startend, color, alpha0, alpha1, horizontal)
+    local horizontal = horizontal or false
+    render.set_col(color.r, color.g, color.b, color.a)
+    render.filled_fast_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, startend.x, startend.y, alpha0, alpha1, horizontal)
 end
 utils.triangle_outline = function(coord1, coord2, coord3, color, thickness)
     local thickness = thickness or 1
@@ -261,7 +275,7 @@ function better_renderer:circle_outline(id, coord, color, radius, start_degrees,
     end
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
-function better_renderer:add_font(id, fontname, tall, weight, blur, flags)
+function better_renderer:add_font(id, fontname, height, width, blur, flags)
     if fonts[id] ~= nil then return fonts[id] end
     if type(flags) ~= "number" and type(flags) ~= "table" then return client.error_log("flags must be number or table type") end
     local fflags = 0
@@ -273,7 +287,8 @@ function better_renderer:add_font(id, fontname, tall, weight, blur, flags)
         fflags = flags
     end
     local font_handler = render.create_font()
-    fonts[id] = setmetatable({id = id, font_handler = font_handler, fontname = fontname, tall = tall, weight = weight, blur = blur, flags = fflags}, better_renderer_mt)
+    render.set_glyph(font_handler, fontname, height, width, 0, 0, fflags, 0, 0)
+    fonts[id] = setmetatable({id = id, font_handler = font_handler, fontname = fontname, size = Coord(width, height), blur = blur, flags = fflags}, better_renderer_mt)
     return fonts[id]
 end
 function better_renderer:draw_text(coord, color, text)
@@ -281,7 +296,13 @@ function better_renderer:draw_text(coord, color, text)
     local w_text = ffi.new(ffi.typeof("wchar_t[$]", text_len), string.byte(text, 1, text_len))
     render.font_col(color.r, color.g, color.b, color.a)
     render.text_pos(coord.x, coord.y)
-    render.set_glyph(self.font_handler, self.fontname, self.tall, self.weight, 0, 0, self.flags, 0, 0)
     render.set_font(self.font_handler)
     render.draw_text(w_text, text_len, 0)
+end
+function better_renderer:text_size(text)
+    if fonts.size == nil then fonts.size = {} end
+    if fonts.size[self.id]  == nil then fonts.size[self.id]  = {} end
+    if fonts.size[self.id][text] ~= nil then return fonts.size[self.id][text] end
+    fonts.size[self.id][text] = utils.get_text_size(self.font_handler, text)
+    return fonts.size[self.id][text]
 end
