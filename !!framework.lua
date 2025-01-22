@@ -1,4 +1,13 @@
 local inspect = require("gamesense/inspect")
+local ffi = require("ffi")
+--region @vtable
+local render = {}
+render.set_col = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 15, "void(__thiscall*)(void*, int, int, int, int)")
+render.filled_rect = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 16, "void(__thiscall*)(void*, int, int, int, int)")
+render.outlined_rect = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 18, "void(__thiscall*)(void*, int, int, int, int)")
+render.filled_rect_fade = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 123, "void(__thiscall*)(void*, int, int, int, int, unsigned int, unsigned int, bool)")
+render.line = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 19, "void(__thiscall*)(void*, int, int, int, int)")
+render.poly_line = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 20, "void(__thiscall*)(void*, int*, int*, int)")
 --region @utils and misc
 local function Color(r, g, b, a)
     return {
@@ -53,34 +62,42 @@ utils.pixel = function(x, y, color)
     renderer.line(x, y, xdest, y, color.r, color.g, color.b, color.a)
 end
 utils.rect_outline = function(coord, size, color, thickness)
+    render.set_col(color.r, color.g, color.b, color.a)
+    render.outlined_rect(coord.x, coord.y, coord.x + size.x, coord.y + size.y)
     local thickness = thickness or 1
-    for j=1, 4, 1 do
-        renderer.line(coord.x, coord.y, coord.x + size.x, coord.y, color.r, color.g, color.b, color.a)
-        renderer.line(coord.x, coord.y + size.y, coord.x + size.x, coord.y + size.y, color.r, color.g, color.b, color.a)
-        renderer.line(coord.x, coord.y, coord.x, coord.y + size.y, color.r, color.g, color.b, color.a)
-        renderer.line(coord.x + size.x, coord.y, coord.x + size.x, coord.y + size.y, color.r, color.g, color.b, color.a)
-        if thickness > 1 then
-            for i=1, thickness, 1 do
-                renderer.line(coord.x + i, coord.y + i, coord.x + size.x - i, coord.y + i, color.r, color.g, color.b, color.a)
-                renderer.line(coord.x + i, coord.y + size.y - i, coord.x + size.x - i, coord.y + size.y - i, color.r, color.g, color.b, color.a)
-                renderer.line(coord.x + i, coord.y + i, coord.x + i, coord.y + size.y - i, color.r, color.g, color.b, color.a)
-                renderer.line(coord.x + size.x - i, coord.y + i, coord.x + size.x - i, coord.y + size.y - i, color.r, color.g, color.b, color.a)
-            end
+    if thickness > 1 then
+        for i=1, thickness, 1 do
+            render.outlined_rect(coord.x + i, coord.y + i, coord.x + size.x - i, coord.y + size.y - i)
         end
     end
 end
+utils.rect_filled = function(coord, size, color)
+    render.set_col(color.r, color.g, color.b, color.a)
+    render.filled_rect(coord.x, coord.y, coord.x + size.x, coord.y + size.y)
+end
+utils.rect_filled_fade = function(coord, size, color, alpha0, alpha1, horizontal)
+    local horizontal = horizontal or false
+    render.set_col(color.r, color.g, color.b, color.a)
+    render.filled_rect_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, alpha0, alpha1, horizontal)
+end
 utils.triangle_outline = function(coord1, coord2, coord3, color, thickness)
     local thickness = thickness or 1
-    for j=1, 4, 1 do
-        renderer.line(coord1.x, coord1.y, coord2.x, coord2.y, color.r, color.g, color.b, color.a)
-        renderer.line(coord2.x, coord2.y, coord3.x, coord3.y, color.r, color.g, color.b, color.a)
-        renderer.line(coord3.x, coord3.y, coord1.x, coord1.y, color.r, color.g, color.b, color.a)
-        if thickness > 1 then
-            for i=1, thickness, 1 do
-                renderer.line(coord1.x + i*2, coord1.y - i, coord2.x, coord2.y + i, color.r, color.g, color.b, color.a)
-                renderer.line(coord2.x, coord2.y + i, coord3.x - i*2, coord3.y - i, color.r, color.g, color.b, color.a)
-                renderer.line(coord3.x- i*2, coord3.y - i, coord1.x + i*2, coord1.y - i, color.r, color.g, color.b, color.a)
-            end
+    local x = ffi.new("int[3]", coord1.x, coord2.x, coord3.x)
+    local y = ffi.new("int[3]", coord1.y, coord2.y, coord3.y)
+    render.set_col(color.r, color.g, color.b, color.a)
+    render.poly_line(x, y, 3)
+    --render.line(coord1.x, coord1.y, coord2.x, coord2.y)
+    --render.line(coord2.x, coord2.y, coord3.x, coord3.y)
+    --render.line(coord3.x, coord3.y, coord1.x, coord1.y)
+    if thickness > 1 then
+        for i=1, thickness, 1 do
+            local xi = ffi.new("int[3]", coord1.x + i*2, coord2.x, coord3.x - i*2)
+            local yi = ffi.new("int[3]", coord1.y - i, coord2.y + i, coord3.y - i)
+            render.poly_line(xi, yi, 3)
+
+            --render.line(coord1.x + i*2, coord1.y - i, coord2.x, coord2.y + i)
+            --render.line(coord2.x, coord2.y + i, coord3.x - i*2, coord3.y - i)
+            --render.line(coord3.x - i*2, coord3.y - i, coord1.x + i*2, coord1.y - i)
         end
     end
 end
@@ -104,7 +121,7 @@ function better_renderer:drag(hover)
     dragable[self.id].current_vec = dragable[self.id].current_vec or self.coord
     dragable[self.id].drags = true
     dragable[self.id].hover = hover or false
-    dragable[self.id].inrange = self.type == "rect" and utils.in_range_rect(global.cursor_pos, self.coord, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, dragable[self.id].current_vec) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, dragable[self.id].current_vec, self.radius)
+    dragable[self.id].inrange = self.type == "rect" and utils.in_range_rect(global.cursor_pos, dragable[self.id].current_vec, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, dragable[self.id].current_vec) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, dragable[self.id].current_vec, self.radius)
     dragable[self.id].clicked = global.clicked and dragable[self.id].inrange or false
     dragable[self.id].firstclick = global.firstclick and dragable[self.id].inrange or false
     dragable[self.id].absolute = dragable[self.id].absolute or false
@@ -120,9 +137,26 @@ function better_renderer:rectangle(id, coord, size, color)
                 end
             end
         end
-        renderer.rectangle(dragable[id].current_vec.x, dragable[id].current_vec.y, size.x, size.y, color.r, color.g, color.b, color.a)
+        utils.rect_filled(dragable[id].current_vec, size, color)
     else
-        renderer.rectangle(coord.x, coord.y, size.x, size.y, color.r, color.g, color.b, color.a)
+        utils.rect_filled(coord, size, color)
+    end
+    return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
+end
+function better_renderer:rectangle_fade(id, coord, size, color, alpha0, alpha1, horizontal)
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
+                end
+            end
+        end
+        utils.rect_filled_fade(dragable[id].current_vec, size, color, alpha0, alpha1, horizontal)
+    else
+        utils.rect_filled_fade(coord, size, color, alpha0, alpha1, horizontal)
     end
     return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
 end
@@ -177,7 +211,7 @@ function better_renderer:triangle(id, coord1, coord2, coord3, color, thickness)
     end
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
 end
-function better_renderer:triangle_outline(id, coord1, coord2, coord3, color)
+function better_renderer:triangle_outline(id, coord1, coord2, coord3, color, thickness)
     if dragable[id] ~= nil then
         if dragable[id].drags == true and ui.is_menu_open() then
             if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
@@ -188,9 +222,9 @@ function better_renderer:triangle_outline(id, coord1, coord2, coord3, color)
                 end
             end
         end
-        utils.triangle_outline(dragable[id].current_vec[1], dragable[id].current_vec[2], dragable[id].current_vec[3], color)
+        utils.triangle_outline(dragable[id].current_vec[1], dragable[id].current_vec[2], dragable[id].current_vec[3], color, thickness)
     else
-        utils.triangle_outline(coord1, coord2, coord3, color)
+        utils.triangle_outline(coord1, coord2, coord3, color, thickness)
     end
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
 end
