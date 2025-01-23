@@ -19,6 +19,7 @@ render.draw_textcol = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 163, 
 render.text_size = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 79, "bool(__stdcall*)(void*, unsigned long, const wchar_t*, int&, int&)")
 render.text_len = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 166, "int(__cdecl*)(void*, unsigned long, const char*, ...)")
 render.text_height =  vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 165, "int(__cdecl*)(void*, unsigned long, int, int&, const char*, ...)")
+render.circle_outline = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 103, "void(__thiscall*)(void*, int, int, int, int)")
 --region @utils and misc
 local function Color(r, g, b, a)
     return {
@@ -42,6 +43,9 @@ utils.get_text_size = function(font, ...)
     local weight = render.text_len(font, ...)
     render.text_height(font, weight, height, ...)
     return Coord(weight, height[0])
+end
+utils.set_draw_col = function(color)
+    render.set_col(color.r, color.b, color.g, color.a)
 end
 utils.sumcoord = function(coord1, coord2)
     return Coord(coord1.x + coord2.x, coord1.y + coord2.y)
@@ -79,7 +83,7 @@ utils.pixel = function(x, y, color)
     renderer.line(x, y, xdest, y, color.r, color.g, color.b, color.a)
 end
 utils.rect_outline = function(coord, size, color, thickness)
-    render.set_col(color.r, color.g, color.b, color.a)
+    utils.set_draw_col(color)
     render.outlined_rect(coord.x, coord.y, coord.x + size.x, coord.y + size.y)
     local thickness = thickness or 1
     if thickness > 1 then
@@ -89,30 +93,41 @@ utils.rect_outline = function(coord, size, color, thickness)
     end
 end
 utils.rect_filled = function(coord, size, color)
-    render.set_col(color.r, color.g, color.b, color.a)
+    utils.set_draw_col(color)
     render.filled_rect(coord.x, coord.y, coord.x + size.x, coord.y + size.y)
 end
 utils.rect_filled_fade = function(coord, size, color, alpha0, alpha1, horizontal)
     local horizontal = horizontal or false
-    render.set_col(color.r, color.g, color.b, color.a)
+    utils.set_draw_col(color)
     render.filled_rect_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, alpha0, alpha1, horizontal)
 end
 utils.rect_fast_fade = function(coord, size, startend, color, alpha0, alpha1, horizontal)
     local horizontal = horizontal or false
-    render.set_col(color.r, color.g, color.b, color.a)
+    utils.set_draw_col(color)
     render.filled_fast_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, startend.x, startend.y, alpha0, alpha1, horizontal)
 end
 utils.triangle_outline = function(coord1, coord2, coord3, color, thickness)
     local thickness = thickness or 1
     local x = ffi.new("int[3]", coord1.x, coord2.x, coord3.x)
     local y = ffi.new("int[3]", coord1.y, coord2.y, coord3.y)
-    render.set_col(color.r, color.g, color.b, color.a)
+    utils.set_draw_col(color)
     render.poly_line(x, y, 3)
     if thickness > 1 then
         for i=1, thickness, 1 do
             local xi = ffi.new("int[3]", coord1.x + i*2, coord2.x, coord3.x - i*2)
             local yi = ffi.new("int[3]", coord1.y - i, coord2.y + i, coord3.y - i)
             render.poly_line(xi, yi, 3)
+        end
+    end
+end
+utils.circle_outline = function(coord, color, radius, segments, thickness)
+    local thickness = thickness or 1
+    utils.set_draw_col(color)
+    render.circle_outline(coord.x, coord.y, radius, segments)
+    if thickness > 1 then
+        for i=1, thickness, 1 do
+            if thickness > radius then return end
+            render.circle_outline(coord.x, coord.y, radius - i, segments)
         end
     end
 end
@@ -134,9 +149,10 @@ end
 function better_renderer:drag(hover)
     dragable[self.id] = dragable[self.id] or {}
     dragable[self.id].current_vec = dragable[self.id].current_vec or self.coord
+    if self.centred then dragable[self.id].current_centred = Coord(dragable[self.id].current_vec.x - self.size.x*0.5, dragable[self.id].current_vec.y - self.size.y*0.5) end
     dragable[self.id].drags = true
     dragable[self.id].hover = hover or false
-    dragable[self.id].inrange = self.type == "rect" and utils.in_range_rect(global.cursor_pos, dragable[self.id].current_vec, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, dragable[self.id].current_vec) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, dragable[self.id].current_vec, self.radius)
+    dragable[self.id].inrange = (self.type == "rect" or self.type == "text") and utils.in_range_rect(global.cursor_pos, self.centred and dragable[self.id].current_centred or dragable[self.id].current_vec, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, dragable[self.id].current_vec) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, dragable[self.id].current_vec, self.radius)
     dragable[self.id].clicked = global.clicked and dragable[self.id].inrange or false
     dragable[self.id].firstclick = global.firstclick and dragable[self.id].inrange or false
     dragable[self.id].absolute = dragable[self.id].absolute or false
@@ -152,10 +168,9 @@ function better_renderer:rectangle(id, coord, size, color)
                 end
             end
         end
-        utils.rect_filled(dragable[id].current_vec, size, color)
-    else
-        utils.rect_filled(coord, size, color)
+        coord = dragable[id].current_vec
     end
+    utils.rect_filled(coord, size, color)
     return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
 end
 function better_renderer:rectangle_fade(id, coord, size, color, alpha0, alpha1, horizontal)
@@ -169,10 +184,9 @@ function better_renderer:rectangle_fade(id, coord, size, color, alpha0, alpha1, 
                 end
             end
         end
-        utils.rect_filled_fade(dragable[id].current_vec, size, color, alpha0, alpha1, horizontal)
-    else
-        utils.rect_filled_fade(coord, size, color, alpha0, alpha1, horizontal)
+        coord = dragable[id].current_vec
     end
+    utils.rect_filled_fade(coord, size, color, alpha0, alpha1, horizontal)
     return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
 end
 function better_renderer:rectangle_outline(id, coord, size, color, thickness)
@@ -186,10 +200,9 @@ function better_renderer:rectangle_outline(id, coord, size, color, thickness)
                 end
             end
         end
-        utils.rect_outline(dragable[id].current_vec, size, color, thickness)
-    else
-        utils.rect_outline(coord, size, color, thickness)
+        coord = dragable[id].current_vec
     end
+    utils.rect_outline(coord, size, color, thickness)
     return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
 end
 function better_renderer:blur(id, coord, size, alpha, amount)
@@ -203,10 +216,9 @@ function better_renderer:blur(id, coord, size, alpha, amount)
                 end
             end
         end
-        renderer.blur(dragable[id].current_vec.x, dragable[id].current_vec.y, size.x, size.y, alpha, amount)
-    else
-        renderer.blur(coord.x, coord.y, size.x, size.y, alpha, amount)
+        coord = dragable[id].current_vec
     end
+    renderer.blur(coord.x, coord.y, size.x, size.y, alpha, amount)
     return setmetatable(better_renderer_mt, {type = "rect", id = id, coord = coord, size = size})
 end
 function better_renderer:triangle(id, coord1, coord2, coord3, color, thickness)
@@ -220,10 +232,9 @@ function better_renderer:triangle(id, coord1, coord2, coord3, color, thickness)
                 end
             end
         end
-        renderer.triangle(dragable[id].current_vec[1].x, dragable[id].current_vec[1].y, dragable[id].current_vec[2].x, dragable[id].current_vec[2].y, dragable[id].current_vec[3].x, dragable[id].current_vec[3].y, color.r, color.g, color.b, color.a, thickness)
-    else
-        renderer.triangle(coord1.x, coord1.y, coord2.x, coord2.y, coord3.x, coord3.y, color.r, color.g, color.b, color.a, thickness)
+        coord = dragable[id].current_vec
     end
+    renderer.triangle(coord1.x, coord1.y, coord2.x, coord2.y, coord3.x, coord3.y, color.r, color.g, color.b, color.a, thickness)
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
 end
 function better_renderer:triangle_outline(id, coord1, coord2, coord3, color, thickness)
@@ -237,10 +248,9 @@ function better_renderer:triangle_outline(id, coord1, coord2, coord3, color, thi
                 end
             end
         end
-        utils.triangle_outline(dragable[id].current_vec[1], dragable[id].current_vec[2], dragable[id].current_vec[3], color, thickness)
-    else
-        utils.triangle_outline(coord1, coord2, coord3, color, thickness)
+        coord = dragable[id].current_vec
     end
+    utils.triangle_outline(coord1, coord2, coord3, color, thickness)
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
 end
 function better_renderer:circle(id, coord, color, radius, start_degrees, percentage)
@@ -254,10 +264,9 @@ function better_renderer:circle(id, coord, color, radius, start_degrees, percent
                 end
             end
         end
-        renderer.circle(dragable[id].current_vec.x, dragable[id].current_vec.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage)
-    else
-        renderer.circle(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage)
+        coord = dragable[id].current_vec
     end
+    renderer.circle(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage)
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
 function better_renderer:circle_outline(id, coord, color, radius, start_degrees, percentage, thickness)
@@ -271,13 +280,29 @@ function better_renderer:circle_outline(id, coord, color, radius, start_degrees,
                 end
             end
         end
-        renderer.circle_outline(dragable[id].current_vec.x, dragable[id].current_vec.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
-    else
-        renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
+        coord = dragable[id].current_vec
     end
+    renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
-function better_renderer:add_font(id, fontname, height, width, blur, flags)
+function better_renderer:text(id, coord, color, flags, maxwidth, ...)
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
+                end
+            end
+        end
+        coord = dragable[id].current_vec
+    end
+    renderer.text(coord.x, coord.y, color.r, color.g, color.b, color.a, flags, maxwidth, ...)
+    return setmetatable({type = "text", id = id, coord = coord, size = Coord(renderer.measure_text(flags, ...)), centred = string.match(flags, "c")}, better_renderer_mt)
+end
+function better_renderer:add_font(fontname, height, width, blur, flags)
+    local id = string.format("%s%d%d%d", fontname, height, width, blur)
     if fonts[id] ~= nil then return fonts[id] end
     if type(flags) ~= "number" and type(flags) ~= "table" then return client.error_log("flags must be number or table type") end
     local fflags = 0
@@ -293,8 +318,22 @@ function better_renderer:add_font(id, fontname, height, width, blur, flags)
     fonts[id] = setmetatable({id = id, font_handler = font_handler, fontname = fontname, size = Coord(width, height), blur = blur, flags = fflags}, better_renderer_mt)
     return fonts[id]
 end
-function better_renderer:draw_text(coord, color, ...)
+function better_renderer:draw_text(id, coord, color, ...)
+    if not self.font_handler then return client.error_log(":draw_text() only avivable with :add_font() method. DID YOU MEAN :text()?") end
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
+                end
+            end
+        end
+        coord = dragable[id].current_vec
+    end
     render.draw_textcol(self.font_handler, coord.x, coord.y, color.r, color.g, color.b, color.a, ...)
+    return setmetatable({type = "text", id = id, coord = coord, size = utils.get_text_size(self.font_handler, ...)}, better_renderer_mt)
 end
 function better_renderer:text_size(...)
     return utils.get_text_size(self.font_handler, ...)
