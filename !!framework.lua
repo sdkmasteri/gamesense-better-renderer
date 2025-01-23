@@ -15,7 +15,10 @@ render.text_pos = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 26, "void
 render.set_glyph = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 72, "bool(__thiscall*)(void*, unsigned long, const char*, int, int, int, int, unsigned long, int, int)")
 render.set_font = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 23, "void(__thiscall*)(void*, unsigned int)")
 render.draw_text = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 28, "void(__thiscall*)(void*, const wchar_t*, int, int)")
-render.text_size = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 79, "bool(__thiscall*)(void*, unsigned long, const wchar_t*, int&, int&)")
+render.draw_textcol = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 163, "void(__stdcall*)(void*, unsigned int, int, int, int, int, int, int, const char*, ...)")
+render.text_size = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 79, "bool(__stdcall*)(void*, unsigned long, const wchar_t*, int&, int&)")
+render.text_len = vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 166, "int(__cdecl*)(void*, unsigned long, const char*, ...)")
+render.text_height =  vtable_bind("vguimatsurface.dll", "VGUI_Surface031", 165, "int(__cdecl*)(void*, unsigned long, int, int&, const char*, ...)")
 --region @utils and misc
 local function Color(r, g, b, a)
     return {
@@ -34,12 +37,11 @@ end
 local screen = {client.screen_size()}
 local utils, better_renderer, global, dragable, fonts = {}, {}, {}, {}, {}
 local better_renderer_mt = {__index = better_renderer}
-utils.get_text_size = function(font, text)
-    local height_t, width_t = ffi.new("int[1]"), ffi.new("int[1]")
-    local text_len = string.len(text)
-    local w_text = ffi.new(ffi.typeof("wchar_t[$]", text_len), string.byte(text, 1, text_len))
-    render.text_size(font, w_text, width_t, height_t)
-    return Coord(width_t[0], height_t[0])
+utils.get_text_size = function(font, ...)
+    local height = ffi.new("int[1]")
+    local weight = render.text_len(font, ...)
+    render.text_height(font, weight, height, ...)
+    return Coord(weight, height[0])
 end
 utils.sumcoord = function(coord1, coord2)
     return Coord(coord1.x + coord2.x, coord1.y + coord2.y)
@@ -291,18 +293,9 @@ function better_renderer:add_font(id, fontname, height, width, blur, flags)
     fonts[id] = setmetatable({id = id, font_handler = font_handler, fontname = fontname, size = Coord(width, height), blur = blur, flags = fflags}, better_renderer_mt)
     return fonts[id]
 end
-function better_renderer:draw_text(coord, color, text)
-    local text_len = string.len(text)
-    local w_text = ffi.new(ffi.typeof("wchar_t[$]", text_len), string.byte(text, 1, text_len))
-    render.font_col(color.r, color.g, color.b, color.a)
-    render.text_pos(coord.x, coord.y)
-    render.set_font(self.font_handler)
-    render.draw_text(w_text, text_len, 0)
+function better_renderer:draw_text(coord, color, ...)
+    render.draw_textcol(self.font_handler, coord.x, coord.y, color.r, color.g, color.b, color.a, ...)
 end
-function better_renderer:text_size(text)
-    if fonts.size == nil then fonts.size = {} end
-    if fonts.size[self.id]  == nil then fonts.size[self.id]  = {} end
-    if fonts.size[self.id][text] ~= nil then return fonts.size[self.id][text] end
-    fonts.size[self.id][text] = utils.get_text_size(self.font_handler, text)
-    return fonts.size[self.id][text]
+function better_renderer:text_size(...)
+    return utils.get_text_size(self.font_handler, ...)
 end
