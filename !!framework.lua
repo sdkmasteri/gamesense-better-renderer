@@ -1,4 +1,4 @@
-local inspect = require("gamesense/inspect")
+--local inspect = require("gamesense/inspect")
 local ffi = require("ffi")
 --region @vtable
 local render = {}
@@ -35,7 +35,6 @@ local function Coord(x, y)
         y = y or 0
     }
 end
-local screen = {client.screen_size()}
 local utils, better_renderer, global, dragable, fonts = {}, {}, {}, {}, {}
 local better_renderer_mt = {__index = better_renderer}
 utils.get_text_size = function(font, ...)
@@ -77,10 +76,6 @@ utils.rect_of_triangle = function(coord1, coord2, coord3)
     x2 = x2 - x,
     y2 = y2 - y
     }
-end
-utils.pixel = function(x, y, color)
-    local xdest = x < screen[1] and x + 1 or x - 1
-    renderer.line(x, y, xdest, y, color.r, color.g, color.b, color.a)
 end
 utils.rect_outline = function(coord, size, color, thickness)
     utils.set_draw_col(color)
@@ -132,10 +127,8 @@ utils.circle_outline = function(coord, color, radius, segments, thickness)
     end
 end
 --region @main
-function better_renderer:new(o)
-    o = o or {}
-    setmetatable(o, self)
-    self.__index = self
+function better_renderer.new()
+
     if ui.is_menu_open() then
         global.old_cursor_pos = global.cursor_pos
         global.cursor_pos = Coord(ui.mouse_position())
@@ -144,7 +137,7 @@ function better_renderer:new(o)
         global.clicked = client.key_state(0x01)
         global.firstclick = not global.oldclicked and global.clicked
     end
-    return o
+    return setmetatable({}, better_renderer_mt)
 end
 function better_renderer:drag(hover)
     dragable[self.id] = dragable[self.id] or {}
@@ -221,7 +214,7 @@ function better_renderer:blur(id, coord, size, alpha, amount)
     renderer.blur(coord.x, coord.y, size.x, size.y, alpha, amount)
     return setmetatable(better_renderer_mt, {type = "rect", id = id, coord = coord, size = size})
 end
-function better_renderer:triangle(id, coord1, coord2, coord3, color, thickness)
+function better_renderer:triangle(id, coord1, coord2, coord3, color)
     if dragable[id] ~= nil then
         if dragable[id].drags == true and ui.is_menu_open() then
             if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
@@ -234,7 +227,7 @@ function better_renderer:triangle(id, coord1, coord2, coord3, color, thickness)
         end
         coord = dragable[id].current_vec
     end
-    renderer.triangle(coord1.x, coord1.y, coord2.x, coord2.y, coord3.x, coord3.y, color.r, color.g, color.b, color.a, thickness)
+    renderer.triangle(coord1.x, coord1.y, coord2.x, coord2.y, coord3.x, coord3.y, color.r, color.g, color.b, color.a)
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
 end
 function better_renderer:triangle_outline(id, coord1, coord2, coord3, color, thickness)
@@ -338,3 +331,9 @@ end
 function better_renderer:text_size(...)
     return utils.get_text_size(self.font_handler, ...)
 end
+
+return {
+    color = Color,
+    coord = Coord,
+    new = better_renderer.new
+}
