@@ -37,6 +37,15 @@ local function Coord(x, y)
 end
 local utils, better_renderer, global, dragable, fonts = {}, {}, {}, {}, {}
 local better_renderer_mt = {__index = better_renderer}
+utils.lerp = function(start, end_pos, time, ampl)
+    if start == end_pos then return end_pos end
+    ampl = ampl or 1/globals.frametime()
+    local frametime = globals.frametime() * ampl
+    time = time * frametime
+    local val = start + (end_pos - start) * time
+    if(math.abs(val - end_pos) < 0.01) then return end_pos end
+    return val 
+end
 utils.get_text_size = function(font, ...)
     local height = ffi.new("int[1]")
     local weight = render.text_len(font, ...)
@@ -126,9 +135,51 @@ utils.circle_outline = function(coord, color, radius, segments, thickness)
         end
     end
 end
+utils.rounded_rectangle = function(x, y, w, h, r, g, b, a, radius)
+    y = y + radius
+    local data_circle = {
+        {x + radius, y, 180},
+        {x + w - radius, y, 90},
+        {x + radius, y + h - radius * 2, 270},
+        {x + w - radius, y + h - radius * 2, 0},
+    }
+    local data = {
+        {x + radius, y, w - radius * 2, h - radius * 2},
+        {x + radius, y - radius, w - radius * 2, radius},
+        {x + radius, y + h - radius * 2, w - radius * 2, radius},
+        {x, y, radius, h - radius * 2},
+        {x + w - radius, y, radius, h - radius * 2},
+    }
+    for _, data in next, data_circle do
+        renderer.circle(data[1], data[2], r, g, b, a, radius, data[3], 0.25)
+    end
+    for _, data in next, data do
+        renderer.rectangle(data[1], data[2], data[3], data[4], r, g, b, a)
+    end
+end
+utils.outlined_rounded_rectangle = function (x, y, w, h, r, g, b, a, radius, thickness)
+    y = y + radius
+    local data_circle = {
+        {x + radius, y, 180},
+        {x + w - radius, y, 270},
+        {x + radius, y + h - radius * 2, 90},
+        {x + w - radius, y + h - radius * 2, 0},
+    }
+    local data = {
+        {x + radius, y - radius, w - radius * 2, thickness},
+        {x + radius, y + h - radius - thickness, w - radius * 2, thickness},
+        {x, y, thickness, h - radius * 2},
+        {x + w - thickness, y, thickness, h - radius * 2},
+    }
+    for _, data in next, data_circle do
+        renderer.circle_outline(data[1], data[2], r, g, b, a, radius, data[3], 0.25, thickness)
+    end
+    for _, data in next, data do
+        renderer.rectangle(data[1], data[2], data[3], data[4], r, g, b, a)
+    end
+end
 --region @main
 function better_renderer.new()
-
     if ui.is_menu_open() then
         global.old_cursor_pos = global.cursor_pos
         global.cursor_pos = Coord(ui.mouse_position())
@@ -196,6 +247,38 @@ function better_renderer:rectangle_outline(id, coord, size, color, thickness)
         coord = dragable[id].current_vec
     end
     utils.rect_outline(coord, size, color, thickness)
+    return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
+end
+function better_renderer:rectangle_round(id, coord, size, color, radius)
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
+                end
+            end
+        end
+        coord = dragable[id].current_vec
+    end
+    utils.rounded_rectangle(coord.x, coord.y, size.x, size.y, color.r, color.g, color.b, color.a, radius)
+    return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
+end
+function better_renderer:rectangle_outline_round(id, coord, size, color, radius, thickness)
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
+                end
+            end
+        end
+        coord = dragable[id].current_vec
+    end
+    utils.outlined_rounded_rectangle(coord.x, coord.y, size.x, size.y, color.r, color.g, color.b, color.a, radius, thickness)
     return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
 end
 function better_renderer:blur(id, coord, size, alpha, amount)
@@ -278,6 +361,13 @@ function better_renderer:circle_outline(id, coord, color, radius, start_degrees,
     renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
+function better_renderer:circle_fade(id, coord, color, alpha0, alpha1, radius, start_degrees, percentage, fade_speed)
+    for i=radius, 1, -1 do
+        alpha0 = alpha0 > alpha1 and math.floor(utils.lerp(alpha0, alpha1, fade_speed)) or math.ceil(utils.lerp(alpha0, alpha1, fade_speed))
+        renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, alpha0, i, start_degrees, percentage, 1)
+    end
+    renderer.rectangle(coord.x-1, coord.x-1, 2, 2, color.r, color.g, color.b, alpha0)
+end
 function better_renderer:text(id, coord, color, flags, maxwidth, ...)
     if dragable[id] ~= nil then
         if dragable[id].drags == true and ui.is_menu_open() then
@@ -307,7 +397,7 @@ function better_renderer:add_font(fontname, height, width, blur, flags)
         fflags = flags
     end
     local font_handler = render.create_font()
-    render.set_glyph(font_handler, fontname, height, width, 0, 0, fflags, 0, 0)
+    render.set_glyph(font_handler, fontname, height, width, blur, 0, fflags, 0, 0)
     fonts[id] = setmetatable({id = id, font_handler = font_handler, fontname = fontname, size = Coord(width, height), blur = blur, flags = fflags}, better_renderer_mt)
     return fonts[id]
 end
