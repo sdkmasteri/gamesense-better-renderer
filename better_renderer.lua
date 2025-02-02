@@ -361,12 +361,25 @@ function better_renderer:circle_outline(id, coord, color, radius, start_degrees,
     renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
     return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
-function better_renderer:circle_fade(id, coord, color, alpha0, alpha1, radius, start_degrees, percentage, fade_speed)
+function better_renderer:circle_fade(id, coord, color, radius, start_degrees, percentage, alpha0, alpha1, fade_speed)
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = Coord(dragable[id].current_vec.x + global.delta.x, dragable[id].current_vec.y + global.delta.y)
+                end
+            end
+        end
+        coord = dragable[id].current_vec
+    end
     for i=radius, 1, -1 do
         alpha0 = alpha0 > alpha1 and math.floor(utils.lerp(alpha0, alpha1, fade_speed)) or math.ceil(utils.lerp(alpha0, alpha1, fade_speed))
         renderer.circle_outline(coord.x, coord.y, color.r, color.g, color.b, alpha0, i, start_degrees, percentage, 1)
     end
     renderer.rectangle(coord.x-1, coord.x-1, 2, 2, color.r, color.g, color.b, alpha0)
+    return setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
 end
 function better_renderer:text(id, coord, color, flags, maxwidth, ...)
     if dragable[id] ~= nil then
