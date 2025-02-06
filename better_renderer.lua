@@ -37,6 +37,16 @@ local function Coord(x, y)
 end
 local utils, better_renderer, global, dragable, fonts = {}, {}, {}, {}, {}
 local better_renderer_mt = {__index = better_renderer}
+local g = Color(10, 10, 10)
+local a = Color(60, 60, 60)
+local b = Color(40, 40, 40)
+local l = Color(20, 20, 20)
+local g1 = Color(100, 150, 200) 
+local g2 = Color(180, 100, 160)
+local g3 = Color(180, 230, 100)
+local B="\x14\x14\x14\xFF"
+local C="\x0c\x0c\x0c\xFF"
+local skt = renderer.load_rgba(table.concat({B,B,B,C,B,C,B,C,B,C,B,B,B,C,B,C}),4,4)
 utils.lerp = function(start, end_pos, time, ampl)
     if start == end_pos then return end_pos end
     ampl = ampl or 1/globals.frametime()
@@ -178,6 +188,17 @@ utils.outlined_rounded_rectangle = function (x, y, w, h, r, g, b, a, radius, thi
         renderer.rectangle(data[1], data[2], data[3], data[4], r, g, b, a)
     end
 end
+utils.skeety = function(coord, size, gradient)
+    renderer.rectangle(coord.x, coord.y, size.x, size.y, g.r, g.g, g.b, g.a)
+    renderer.rectangle(coord.x + 1, coord.y + 1, size.x - 2, size.y - 2, a.r, a.g, a.b, a.a)
+    renderer.rectangle(coord.x + 2, coord.y + 2, size.x - 4, size.y - 4, b.r, b.g, b.b, b.a)
+    renderer.rectangle(coord.x + 4, coord.y + 4, size.x - 8, size.y - 8, a.r, a.g, a.b, a.a)
+    renderer.texture(skt, coord.x + 5, coord.y + 5, size.x - 10, size.y - 10, 255, 255, 255, 255, "t")
+    if gradient then
+        renderer.gradient(coord.x + 6, coord.y + 6, size.x/2, 1, g1.r, g1.g, g1.b, g1.a, g2.r, g2.g, g2.b, g2.a, true)
+        renderer.gradient(coord.x + 6 + size.x/2, coord.y + 6, size.x/2 - 12, 1, g2.r, g2.g, g2.b, 255, g3.r, g3.g, g3.b, g3.a, true)
+    end
+end
 --region @main
 function better_renderer.new()
     if ui.is_menu_open() then
@@ -295,7 +316,23 @@ function better_renderer:blur(id, coord, size, alpha, amount)
         coord = dragable[id].current_vec
     end
     renderer.blur(coord.x, coord.y, size.x, size.y, alpha, amount)
-    return setmetatable(better_renderer_mt, {type = "rect", id = id, coord = coord, size = size})
+    return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
+end
+function better_renderer:skeety(id, coord, size, gradient)
+    if dragable[id] ~= nil then
+        if dragable[id].drags == true and ui.is_menu_open() then
+            if dragable[id].firstclick and dragable[id].clicked or dragable[id].absolute then
+                client.exec("-attack")
+                if dragable[id].inrange or dragable[id].absolute then
+                    dragable[id].absolute = global.clicked
+                    dragable[id].current_vec = utils.sumcoord(dragable[id].current_vec, global.delta)
+                end
+            end
+        end
+        coord = dragable[id].current_vec
+    end
+    utils.skeety(coord, size, gradient)
+    return setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
 end
 function better_renderer:triangle(id, coord1, coord2, coord3, color)
     if dragable[id] ~= nil then
@@ -308,7 +345,9 @@ function better_renderer:triangle(id, coord1, coord2, coord3, color)
                 end
             end
         end
-        coord = dragable[id].current_vec
+        coord1 = dragable[id].current_vec[1]
+        coord2 = dragable[id].current_vec[2]
+        coord3 = dragable[id].current_vec[3]
     end
     renderer.triangle(coord1.x, coord1.y, coord2.x, coord2.y, coord3.x, coord3.y, color.r, color.g, color.b, color.a)
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
@@ -324,7 +363,9 @@ function better_renderer:triangle_outline(id, coord1, coord2, coord3, color, thi
                 end
             end
         end
-        coord = dragable[id].current_vec
+        coord1 = dragable[id].current_vec[1]
+        coord2 = dragable[id].current_vec[2]
+        coord3 = dragable[id].current_vec[3]
     end
     utils.triangle_outline(coord1, coord2, coord3, color, thickness)
     return setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
@@ -434,7 +475,6 @@ end
 function better_renderer:text_size(...)
     return utils.get_text_size(self.font_handler, ...)
 end
-
 return {
     color = Color,
     coord = Coord,
