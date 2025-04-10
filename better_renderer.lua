@@ -60,24 +60,24 @@ end
 utils.set_draw_col = function(color)
     render.set_col(color.r, color.b, color.g, color.a)
 end
-utils.in_range_triangle = function(curs, coords)
-    local a = (coords[1].x - curs.x) * (coords[2].y - coords[1].y) - (coords[2].x - coords[1].x) * (coords[1].y - curs.y)
-    local b = (coords[2].x - curs.x) * (coords[3].y - coords[2].y) - (coords[3].x - coords[2].x) * (coords[2].y - curs.y)
-    local c = (coords[3].x - curs.x) * (coords[1].y - coords[3].y) - (coords[1].x - coords[3].x) * (coords[3].y - curs.y)
+utils.in_range_triangle = function(curs, vertex)
+    local a = (vertex[1].x - curs.x) * (vertex[2].y - vertex[1].y) - (vertex[2].x - vertex[1].x) * (vertex[1].y - curs.y)
+    local b = (vertex[2].x - curs.x) * (vertex[3].y - vertex[2].y) - (vertex[3].x - vertex[2].x) * (vertex[2].y - curs.y)
+    local c = (vertex[3].x - curs.x) * (vertex[1].y - vertex[3].y) - (vertex[1].x - vertex[3].x) * (vertex[3].y - curs.y)
     if (a >= 0 and b >= 0 and c >= 0) then return true end
     return false
 end
-utils.in_range_rect = function(curs, coord, size)
-    return curs.x > coord.x and curs.x < coord.x + size.x and curs.y > coord.y and curs.y < coord.y + size.y 
+utils.in_range_rect = function(curs, pos, size)
+    return curs.x > pos.x and curs.x < pos.x + size.x and curs.y > pos.y and curs.y < pos.y + size.y 
 end
-utils.in_range_circle = function(curs, coord, radius)
-    return (curs.x - coord.x)^2 + (curs.y - coord.y)^2 <= radius^2
+utils.in_range_circle = function(curs, pos, radius)
+    return (curs.x - pos.x)^2 + (curs.y - pos.y)^2 <= radius^2
 end
-utils.rect_of_triangle = function(coord1, coord2, coord3)
-    local x = coord1.x <= coord2.x and coord1.x <= coord3.x and coord1.x or coord2.x <= coord1.x and coord2.x <= coord3.x and coord2.x or coord3.x <= coord2.x and coord3.x <= coord1.x and coord3.x
-    local y = coord1.y <= coord2.y and coord1.y <= coord3.y and coord1.y or coord2.y <= coord1.y and coord2.y <= coord3.y and coord2.y or coord3.y <= coord2.y and coord3.y <= coord1.y and coord3.y
-    local x2 = coord1.x >= coord2.x and coord1.x >= coord3.x and coord1.x or coord2.x >= coord1.x and coord2.x >= coord3.x and coord2.x or coord3.x >= coord2.x and coord3.x >= coord1.x and coord3.x
-    local y2 = coord1.y >= coord2.y and coord1.y >= coord3.y and coord1.y or coord2.y >= coord1.y and coord2.y >= coord3.y and coord2.y or coord3.y >= coord2.y and coord3.y >= coord1.y and coord3.y
+utils.rect_of_triangle = function(vertex1, vertex2, vertex3)
+    local x = vertex1.x <= vertex2.x and vertex1.x <= vertex3.x and vertex1.x or vertex2.x <= vertex1.x and vertex2.x <= vertex3.x and vertex2.x or vertex3.x <= vertex2.x and vertex3.x <= vertex1.x and vertex3.x
+    local y = vertex1.y <= vertex2.y and vertex1.y <= vertex3.y and vertex1.y or vertex2.y <= vertex1.y and vertex2.y <= vertex3.y and vertex2.y or vertex3.y <= vertex2.y and vertex3.y <= vertex1.y and vertex3.y
+    local x2 = vertex1.x >= vertex2.x and vertex1.x >= vertex3.x and vertex1.x or vertex2.x >= vertex1.x and vertex2.x >= vertex3.x and vertex2.x or vertex3.x >= vertex2.x and vertex3.x >= vertex1.x and vertex3.x
+    local y2 = vertex1.y >= vertex2.y and vertex1.y >= vertex3.y and vertex1.y or vertex2.y >= vertex1.y and vertex2.y >= vertex3.y and vertex2.y or vertex3.y >= vertex2.y and vertex3.y >= vertex1.y and vertex3.y
     return {
     x1 = x,
     y1 = y,
@@ -85,52 +85,52 @@ utils.rect_of_triangle = function(coord1, coord2, coord3)
     y2 = y2 - y
     }
 end
-utils.rect_outline = function(coord, size, color, thickness)
+utils.rect_outline = function(pos, size, color, thickness)
     utils.set_draw_col(color)
-    render.outlined_rect(coord.x, coord.y, coord.x + size.x, coord.y + size.y)
+    render.outlined_rect(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
     local thickness = thickness or 1
     if thickness > 1 then
         for i=1, thickness, 1 do
-            render.outlined_rect(coord.x + i, coord.y + i, coord.x + size.x - i, coord.y + size.y - i)
+            render.outlined_rect(pos.x + i, pos.y + i, pos.x + size.x - i, pos.y + size.y - i)
         end
     end
 end
-utils.rect_filled = function(coord, size, color)
+utils.rect_filled = function(pos, size, color)
     utils.set_draw_col(color)
-    render.filled_rect(coord.x, coord.y, coord.x + size.x, coord.y + size.y)
+    render.filled_rect(pos.x, pos.y, pos.x + size.x, pos.y + size.y)
 end
-utils.rect_filled_fade = function(coord, size, color, alpha0, alpha1, horizontal)
+utils.rect_filled_fade = function(pos, size, color, alpha0, alpha1, horizontal)
     local horizontal = horizontal or false
     utils.set_draw_col(color)
-    render.filled_rect_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, alpha0, alpha1, horizontal)
+    render.filled_rect_fade(pos.x, pos.y, pos.x + size.x, pos.y + size.y, alpha0, alpha1, horizontal)
 end
-utils.rect_fast_fade = function(coord, size, startend, color, alpha0, alpha1, horizontal)
+utils.rect_fast_fade = function(pos, size, startend, color, alpha0, alpha1, horizontal)
     local horizontal = horizontal or false
     utils.set_draw_col(color)
-    render.filled_fast_fade(coord.x, coord.y, coord.x + size.x, coord.y + size.y, startend.x, startend.y, alpha0, alpha1, horizontal)
+    render.filled_fast_fade(pos.x, pos.y, pos.x + size.x, pos.y + size.y, startend.x, startend.y, alpha0, alpha1, horizontal)
 end
-utils.triangle_outline = function(coord1, coord2, coord3, color, thickness)
+utils.triangle_outline = function(vertex1, vertex2, vertex3, color, thickness)
     local thickness = thickness or 1
-    local x = ffi.new("int[3]", coord1.x, coord2.x, coord3.x)
-    local y = ffi.new("int[3]", coord1.y, coord2.y, coord3.y)
+    local x = ffi.new("int[3]", vertex1.x, vertex2.x, vertex3.x)
+    local y = ffi.new("int[3]", vertex1.y, vertex2.y, vertex3.y)
     utils.set_draw_col(color)
     render.poly_line(x, y, 3)
     if thickness > 1 then
         for i=1, thickness, 1 do
-            local xi = ffi.new("int[3]", coord1.x + i*2, coord2.x, coord3.x - i*2)
-            local yi = ffi.new("int[3]", coord1.y - i, coord2.y + i, coord3.y - i)
+            local xi = ffi.new("int[3]", vertex1.x + i*2, vertex2.x, vertex3.x - i*2)
+            local yi = ffi.new("int[3]", vertex1.y - i, vertex2.y + i, vertex3.y - i)
             render.poly_line(xi, yi, 3)
         end
     end
 end
-utils.circle_outline = function(coord, color, radius, segments, thickness)
+utils.circle_outline = function(pos, color, radius, segments, thickness)
     local thickness = thickness or 1
     utils.set_draw_col(color)
-    render.circle_outline(coord.x, coord.y, radius, segments)
+    render.circle_outline(pos.x, pos.y, radius, segments)
     if thickness > 1 then
         for i=1, thickness, 1 do
             if thickness > radius then return end
-            render.circle_outline(coord.x, coord.y, radius - i, segments)
+            render.circle_outline(pos.x, pos.y, radius - i, segments)
         end
     end
 end
@@ -177,15 +177,15 @@ utils.outlined_rounded_rectangle = function (x, y, w, h, r, g, b, a, radius, thi
         renderer.rectangle(data[1], data[2], data[3], data[4], r, g, b, a)
     end
 end
-utils.skeety = function(coord, size, gradient)
-    renderer.rectangle(coord.x, coord.y, size.x, size.y, g.r, g.g, g.b, g.a)
-    renderer.rectangle(coord.x + 1, coord.y + 1, size.x - 2, size.y - 2, a.r, a.g, a.b, a.a)
-    renderer.rectangle(coord.x + 2, coord.y + 2, size.x - 4, size.y - 4, b.r, b.g, b.b, b.a)
-    renderer.rectangle(coord.x + 4, coord.y + 4, size.x - 8, size.y - 8, a.r, a.g, a.b, a.a)
-    renderer.texture(skt, coord.x + 5, coord.y + 5, size.x - 10, size.y - 10, 255, 255, 255, 255, "t")
+utils.skeety = function(pos, size, gradient)
+    renderer.rectangle(pos.x, pos.y, size.x, size.y, g.r, g.g, g.b, g.a)
+    renderer.rectangle(pos.x + 1, pos.y + 1, size.x - 2, size.y - 2, a.r, a.g, a.b, a.a)
+    renderer.rectangle(pos.x + 2, pos.y + 2, size.x - 4, size.y - 4, b.r, b.g, b.b, b.a)
+    renderer.rectangle(pos.x + 4, pos.y + 4, size.x - 8, size.y - 8, a.r, a.g, a.b, a.a)
+    renderer.texture(skt, pos.x + 5, pos.y + 5, size.x - 10, size.y - 10, 255, 255, 255, 255, "t")
     if gradient then
-        renderer.gradient(coord.x + 6, coord.y + 6, size.x/2, 1, g1.r, g1.g, g1.b, g1.a, g2.r, g2.g, g2.b, g2.a, true)
-        renderer.gradient(coord.x + 6 + size.x/2, coord.y + 6, size.x/2 - 12, 1, g2.r, g2.g, g2.b, 255, g3.r, g3.g, g3.b, g3.a, true)
+        renderer.gradient(pos.x + 6, pos.y + 6, size.x/2, 1, g1.r, g1.g, g1.b, g1.a, g2.r, g2.g, g2.b, g2.a, true)
+        renderer.gradient(pos.x + 6 + size.x/2, pos.y + 6, size.x/2 - 12, 1, g2.r, g2.g, g2.b, 255, g3.r, g3.g, g3.b, g3.a, true)
     end
 end
 global = {}
@@ -201,86 +201,86 @@ utils.global_handler = function()
     end
 end
 --region @main
-function better_renderer:rectangle(id, coord, size, color)
+function better_renderer:rectangle(id, pos, size, color)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "rect", id = id, coord = coord, size = size}, better_renderer_mt)
-    utils.rect_filled(self[id].coord, self[id].size, color)
+    self[id] = self[id] or setmetatable({type = "rect", id = id, pos = pos, size = size}, better_renderer_mt)
+    utils.rect_filled(self[id].pos, self[id].size, color)
     return self[id]
 end
-function better_renderer:rectangle_fade(id, coord, size, color, alpha0, alpha1, horizontal)
+function better_renderer:rectangle_fade(id, pos, size, color, alpha0, alpha1, horizontal)
     local id = self.i..":"..id
-    self[id] = setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
-    utils.rect_filled_fade(self[id].coord, self[id].size, color, alpha0, alpha1, horizontal)
+    self[id] = setmetatable({type = "rect", id = id, pos = pos, size = size,}, better_renderer_mt)
+    utils.rect_filled_fade(self[id].pos, self[id].size, color, alpha0, alpha1, horizontal)
     return self[id]
 end
-function better_renderer:rectangle_outline(id, coord, size, color, thickness)
+function better_renderer:rectangle_outline(id, pos, size, color, thickness)
     local id = self.i..":"..id
-    self[id] = setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
-    utils.rect_outline(self[id].coord, self[id].size, color, thickness)
+    self[id] = setmetatable({type = "rect", id = id, pos = pos, size = size,}, better_renderer_mt)
+    utils.rect_outline(self[id].pos, self[id].size, color, thickness)
     return self[id]
 end
-function better_renderer:rectangle_round(id, coord, size, color, radius)
+function better_renderer:rectangle_round(id, pos, size, color, radius)
     local id = self.i..":"..id
-    self[id] = setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
-    utils.rounded_rectangle(self[id].coord.x, self[id].coord.y, self[id].size.x, self[id].size.y, color.r, color.g, color.b, color.a, radius)
+    self[id] = setmetatable({type = "rect", id = id, pos = pos, size = size,}, better_renderer_mt)
+    utils.rounded_rectangle(self[id].pos.x, self[id].pos.y, self[id].size.x, self[id].size.y, color.r, color.g, color.b, color.a, radius)
     return self[id]
 end
-function better_renderer:rectangle_outline_round(id, coord, size, color, radius, thickness)
+function better_renderer:rectangle_outline_round(id, pos, size, color, radius, thickness)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
-    utils.outlined_rounded_rectangle(self[id].coord.x, self[id].coord.y, size.x, size.y, color.r, color.g, color.b, color.a, radius, thickness)
+    self[id] = self[id] or setmetatable({type = "rect", id = id, pos = pos, size = size,}, better_renderer_mt)
+    utils.outlined_rounded_rectangle(self[id].pos.x, self[id].pos.y, size.x, size.y, color.r, color.g, color.b, color.a, radius, thickness)
     return self[id]
 end
-function better_renderer:blur(id, coord, size, alpha, amount)
+function better_renderer:blur(id, pos, size, alpha, amount)
     local id = self.i..":"..id
-    self[id] = setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
-    renderer.blur(self[id].coord.x, self[id].coord.y, self[id].size.x, self[id].size.y, alpha, amount)
+    self[id] = setmetatable({type = "rect", id = id, pos = pos, size = size,}, better_renderer_mt)
+    renderer.blur(self[id].pos.x, self[id].pos.y, self[id].size.x, self[id].size.y, alpha, amount)
     return self[id]
 end
-function better_renderer:skeety(id, coord, size, gradient)
+function better_renderer:skeety(id, pos, size, gradient)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "rect", id = id, coord = coord, size = size,}, better_renderer_mt)
-    utils.skeety(self[id].coord, self[id].size, gradient)
+    self[id] = self[id] or setmetatable({type = "rect", id = id, pos = pos, size = size,}, better_renderer_mt)
+    utils.skeety(self[id].pos, self[id].size, gradient)
     return self[id]
 end
-function better_renderer:triangle(id, coord1, coord2, coord3, color)
+function better_renderer:triangle(id, vertex1, vertex2, vertex3, color)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
-    renderer.triangle(self[id].coord1.x, self[id].coord1.y, self[id].coord2.x, self[id].coord2.y, self[id].coord3.x, self[id].coord3.y, color.r, color.g, color.b, color.a)
+    self[id] = self[id] or setmetatable({type = "triangle", id = id, pos = {vertex1, vertex2, vertex3}}, better_renderer_mt)
+    renderer.triangle(self[id].vertex1.x, self[id].vertex1.y, self[id].vertex2.x, self[id].vertex2.y, self[id].vertex3.x, self[id].vertex3.y, color.r, color.g, color.b, color.a)
     return self[id]
 end
-function better_renderer:triangle_outline(id, coord1, coord2, coord3, color, thickness)
+function better_renderer:triangle_outline(id, vertex1, vertex2, vertex3, color, thickness)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "triangle", id = id, coord = {coord1, coord2, coord3}}, better_renderer_mt)
-    utils.triangle_outline(self[id].coord1, self[id].coord2, self[id].coord3, color, thickness)
+    self[id] = self[id] or setmetatable({type = "triangle", id = id, pos = {vertex1, vertex2, vertex3}}, better_renderer_mt)
+    utils.triangle_outline(self[id].vertex1, self[id].vertex2, self[id].vertex3, color, thickness)
     return self[id]
 end
-function better_renderer:circle(id, coord, color, radius, start_degrees, percentage)
+function better_renderer:circle(id, pos, color, radius, start_degrees, percentage)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
-    renderer.circle(self[id].coord.x, self[id].coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage)
+    self[id] = self[id] or setmetatable({type = "circle", id = id, pos = pos, radius = radius}, better_renderer_mt)
+    renderer.circle(self[id].pos.x, self[id].pos.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage)
     return self[id]
 end
-function better_renderer:circle_outline(id, coord, color, radius, start_degrees, percentage, thickness)
+function better_renderer:circle_outline(id, pos, color, radius, start_degrees, percentage, thickness)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
-    renderer.circle_outline(self[id].coord.x, self[id].coord.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
+    self[id] = self[id] or setmetatable({type = "circle", id = id, pos = pos, radius = radius}, better_renderer_mt)
+    renderer.circle_outline(self[id].pos.x, self[id].pos.y, color.r, color.g, color.b, color.a, radius, start_degrees, percentage, thickness)
     return self[id]
 end
-function better_renderer:circle_fade(id, coord, color, radius, start_degrees, percentage, alpha0, alpha1, fade_speed)
+function better_renderer:circle_fade(id, pos, color, radius, start_degrees, percentage, alpha0, alpha1, fade_speed)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "circle", id = id, coord = coord, radius = radius}, better_renderer_mt)
+    self[id] = self[id] or setmetatable({type = "circle", id = id, pos = pos, radius = radius}, better_renderer_mt)
     for i=radius, 1, -1 do
         alpha0 = alpha0 > alpha1 and math.floor(utils.lerp(alpha0, alpha1, fade_speed)) or math.ceil(utils.lerp(alpha0, alpha1, fade_speed))
-        renderer.circle_outline(self[id].coord.x, self[id].coord.y, color.r, color.g, color.b, alpha0, i, start_degrees, percentage, 1)
+        renderer.circle_outline(self[id].pos.x, self[id].pos.y, color.r, color.g, color.b, alpha0, i, start_degrees, percentage, 1)
     end
-    renderer.rectangle(self[id].coord.x-1, self[id].coord.x-1, 2, 2, color.r, color.g, color.b, alpha0)
+    renderer.rectangle(self[id].pos.x-1, self[id].pos.x-1, 2, 2, color.r, color.g, color.b, alpha0)
     return self[id]
 end
-function better_renderer:text(id, coord, color, flags, maxwidth, ...)
+function better_renderer:text(id, pos, color, flags, maxwidth, ...)
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "text", id = id, coord = coord, size = vector(renderer.measure_text(flags, ...)), centred = string.match(flags, "c")}, better_renderer_mt)
-    renderer.text(self[id].coord.x, self[id].coord.y, color.r, color.g, color.b, color.a, flags, maxwidth, ...)
+    self[id] = self[id] or setmetatable({type = "text", id = id, pos = pos, size = vector(renderer.measure_text(flags, ...)), centred = string.match(flags, "c")}, better_renderer_mt)
+    renderer.text(self[id].pos.x, self[id].pos.y, color.r, color.g, color.b, color.a, flags, maxwidth, ...)
     return self[id]
 end
 function better_renderer:add_font(fontname, height, width, blur, flags)
@@ -315,11 +315,11 @@ function better_renderer:set_glyph(height, width, blur, flags, fontname)
     render.set_glyph(self.font_handler, fontname, height, width, blur, 0, fflags, 0, 0)
     fonts[self.id] = setmetatable({id = id, type = "font", font_handler = self.font_handler, fontname = fontname, size = vector(width, height), blur = blur, flags = fflags}, better_renderer_mt)
 end
-function better_renderer:draw_text(id, coord, color, ...)
+function better_renderer:draw_text(id, pos, color, ...)
     if not self.font_handler then return client.error_log(":draw_text() only avivable with :add_font() method. DID YOU MEAN :text()?") end
     local id = self.i..":"..id
-    self[id] = self[id] or setmetatable({type = "text", id = id, coord = coord, size = utils.get_text_size(self.font_handler, ...)}, better_renderer_mt)
-    render.draw_textcol(self.font_handler, self[id].coord.x, self[id].coord.y, color.r, color.g, color.b, color.a, ...)
+    self[id] = self[id] or setmetatable({type = "text", id = id, pos = pos, size = utils.get_text_size(self.font_handler, ...)}, better_renderer_mt)
+    render.draw_textcol(self.font_handler, self[id].pos.x, self[id].pos.y, color.r, color.g, color.b, color.a, ...)
     return self[id]
 end
 function better_renderer:text_size(...)
@@ -329,33 +329,31 @@ local dragableabs = {}
 local donotattack = {}
 function better_renderer:drag(enable, hover)
     if self.type == "font" then return end
-    local current_centred = self.centred and vector(self.coord.x - self.size.x*0.5, self.coord.y - self.size.y*0.5) or nil
-    local inrange = (self.type == "rect" or self.type == "text") and utils.in_range_rect(global.cursor_pos, self.centred and current_centred or self.coord, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, self.coord) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, self.coord, self.radius)
+    local current_centred = self.centred and vector(self.pos.x - self.size.x*0.5, self.pos.y - self.size.y*0.5) or nil
+    local inrange = (self.type == "rect" or self.type == "text") and utils.in_range_rect(global.cursor_pos, self.centred and current_centred or self.pos, self.size) or self.type == "triangle" and utils.in_range_triangle(global.cursor_pos, self.pos) or self.type == "circle" and utils.in_range_circle(global.cursor_pos, self.pos, self.radius)
     donotattack[self.id] = inrange or dragableabs[self.id]
     local clicked = global.clicked and inrange
     local firstclick = global.firstclick and inrange
-    if enable and ui.is_menu_open() and not global.on_menu and not global.in_scaling then
+    if enable and ui.is_menu_open() and not global.on_menu then
         if firstclick and clicked or dragableabs[self.id] then
             if inrange or dragableabs[self.id] then
                 dragableabs[self.id] = global.clicked
-                self.coord = self.coord + global.delta
+                self.pos = self.pos + global.delta
             end
         end
     end
 end
-global.in_scaling = false
 local scaleabs = {}
 function better_renderer:scale(vertical, horizontal, adding, minsize)
-    donotattack[self.id] = utils.in_range_rect(global.cursor_pos, self.coord, self.size)
-    local inrange = utils.in_range_rect(global.cursor_pos, self.coord + self.size - vector(adding, adding), vector(adding, adding))
-    global.in_scaling = inrange
-    if inrange and global.firstclick or scaleabs[self.id] then
+    if self.type ~= "rect" then return end
+    donotattack[self.id] = utils.in_range_rect(global.cursor_pos, self.pos, self.size)
+    if utils.in_range_rect(global.cursor_pos, self.pos + self.size - vector(adding, adding), vector(adding, adding)) and global.firstclick or scaleabs[self.id] then
         scaleabs[self.id] = global.clicked
         local sized = self.size + global.delta
-        if vertical and sized.y >= minsize.y and global.cursor_pos.y >= self.coord.y then
+        if vertical and sized.y >= minsize.y and global.cursor_pos.y >= self.pos.y then
             self.size.y = sized.y
         end
-        if horizontal and sized.x >= minsize.x and global.cursor_pos.x >= self.coord.x then
+        if horizontal and sized.x >= minsize.x and global.cursor_pos.x >= self.pos.x then
             self.size.x = sized.x
         end
     end
